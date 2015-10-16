@@ -17,6 +17,14 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
+
+struct wait_sema
+  {
+	int64_t wakeup_tick;
+    struct semaphore sleep_sema;
+	struct list_elem elem;
+  };
+
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
@@ -30,6 +38,17 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+/*Ordered list of semaphores for threads which are put to sleep,
+	to be awakened by the timer interrupt. */
+static struct list wait_sema_list;
+
+/*Semaphore to synchronize calculation of wakeup_tick for each
+	thread*/
+static struct semaphore sema_calc_tick;
+
+bool
+wakeup_order (const struct list_elem *a, const struct list_elem *b, void *aux);
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -37,6 +56,8 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&wait_sema_list);
+  sema_init (&sema_calc_tick,1);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -90,11 +111,45 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-
+  
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  
+  enum intr_level old_level;
+
+  struct wait_sema current_thread;
+  
+  sema_init (&current_thread.sleep_sema,0);
+
+  sema_down (&sema_calc_tick);
+   current_thread.wakeup_tick = start+ticks;
+  sema_up (&sema_calc_tick);
+
+  old_level = intr_disable();
+    list_insert_ordered (&wait_sema_list,&current_thread.elem,wakeup_order,NULL);
+  intr_set_level (old_level);
+
+  sema_down (&current_thread.sleep_sema); 	
+
+/*Old Code*/
+ // while (timer_elapsed (start) < ticks) 
+ //   thread_yield ();
 }
+
+/* Compares wakeup_tick value for two elements in the wait_sema_list. This 
+   function is used in inserting the wait_sema elements into wait_sema_list
+   sorted by increasing wakeup_ticks.*/
+bool
+wakeup_order (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
+{
+	struct wait_sema *entry1 = list_entry (a, struct wait_sema, elem);
+	struct wait_sema *entry2 = list_entry (b, struct wait_sema, elem);
+	
+	if(entry2->wakeup_tick > entry1->wakeup_tick)
+		return true;
+	else
+		return false;
+}
+	
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -172,6 +227,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  thread_wakeup();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -243,4 +299,29 @@ real_time_delay (int64_t num, int32_t denom)
      the possibility of overflow. */
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
+}
+
+
+/* This function is invoked by the timer_interrupt to wake up
+   sleeping threads.*/
+void
+thread_wakeup (void)
+{
+//  enum intr_level old_level;
+  if(!list_empty(&wait_sema_list))
+  {
+	struct list_elem *e; 
+	
+    for(e = list_begin(&wait_sema_list);e != list_end(&wait_sema_list); e = list_next(e))
+	{
+		struct wait_sema *waiting_element=list_entry(e, struct wait_sema, elem);  
+		if(waiting_element->wakeup_tick <= ticks)
+		{
+			list_pop_front (&wait_sema_list);
+			sema_up (&waiting_element->sleep_sema);	
+		}
+		else
+			break; 		//exit the loop
+	}
+  }
 }
