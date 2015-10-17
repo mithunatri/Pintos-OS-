@@ -15,6 +15,8 @@
 #include "userprog/process.h"
 #endif
 
+//** Need to use list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, void *aux)
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -70,6 +72,8 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+bool priority_checker(const struct list_elem *a,const struct list_elem *b,void *aux); //***//
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -92,7 +96,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+//  list_init (&donation);					//***//
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -208,7 +212,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  
   return tid;
 }
 
@@ -225,7 +229,7 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   thread_current ()->status = THREAD_BLOCKED;
-  schedule ();
+  schedule ();	
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -242,11 +246,18 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
-
+  //printf("\n Current thread (parent) priority %d \n", thread_current()->priority);
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  if(!thread_mlfqs)
+	list_insert_ordered (&ready_list, &t->elem, priority_checker,NULL); //***//
   t->status = THREAD_READY;
+  if(thread_current() != idle_thread && t->priority > thread_current ()->priority)
+  {
+       thread_yield();
+//      thread_current ()->status = THREAD_READY;
+  //    schedule ();
+  } 
   intr_set_level (old_level);
 }
 
@@ -316,7 +327,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, priority_checker,NULL); //***///
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -339,11 +350,24 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's priority to NEW_PRIORITY. If
+    new thread priority is lower than priority of the
+    thread in ready list, current thread should yield. */
 void
 thread_set_priority (int new_priority) 
 {
+  
+  enum intr_level old_level = intr_disable();
+  ASSERT (intr_get_level() == INTR_OFF);
   thread_current ()->priority = new_priority;
+  if(!list_empty(&ready_list))
+  { 
+        struct thread *t = list_entry (list_front (&ready_list), struct thread, elem);
+  	if(thread_current ()->priority < t->priority)
+		thread_yield();
+  }
+  intr_set_level (old_level);  
+
 }
 
 /* Returns the current thread's priority. */
@@ -558,7 +582,7 @@ schedule (void)
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
-
+ 
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
@@ -567,6 +591,19 @@ schedule (void)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
 }
+
+bool
+priority_checker (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)  
+{
+struct thread *entry1 = list_entry (a, struct thread, elem);			   
+struct thread *entry2 = list_entry (b, struct thread, elem);               
+
+if(entry1->priority > entry2->priority)                                    
+	return true;                                                           
+
+return false;                                                              
+}
+
 
 /* Returns a tid to use for a new thread. */
 static tid_t
