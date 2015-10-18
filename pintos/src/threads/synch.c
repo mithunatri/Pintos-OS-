@@ -35,6 +35,9 @@
 bool priority_compare
 (const struct list_elem *a, const struct list_elem *b, void *aux);
 
+bool cond_priority_compare
+(const struct list_elem *a, const struct list_elem *b, void *aux);
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -116,10 +119,11 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+  sema->value++;
   if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-  sema->value++;
+ // sema->value++;
   intr_set_level (old_level);
 }
 
@@ -254,6 +258,7 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
+    int priority;			/* Holds priority of current thread */
   };
 
 /* Initializes condition variable COND.  A condition variable
@@ -298,7 +303,9 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  waiter.priority = thread_current()->priority;
+//  list_push_back (&cond->waiters, &waiter.elem);
+  list_insert_ordered (&cond->waiters, &waiter.elem, cond_priority_compare, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -348,6 +355,18 @@ priority_compare (const struct list_elem *a, const struct list_elem *b, void *au
 	
 	if(entry1->priority > entry2->priority)
         	return true;
+	
+	return false;
+}
+
+bool
+cond_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	int thread1_priority = list_entry (a, struct semaphore_elem, elem)->priority;
+	int thread2_priority = list_entry (b, struct semaphore_elem, elem)->priority;
+
+	if(thread1_priority > thread2_priority)
+		return true;
 	
 	return false;
 }
