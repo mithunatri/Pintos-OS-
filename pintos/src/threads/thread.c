@@ -364,8 +364,8 @@ thread_set_priority (int new_priority)
   if(thread_mlfqs)
 	return;
 	
-  sema_down (&set_priority_sema);
-	
+  //sema_down (&set_priority_sema);
+  enum intr_level old_level = intr_disable();	
   thread_current ()->priority = new_priority;
   thread_current ()->original_priority = new_priority;
   if(!list_empty(&ready_list))
@@ -376,7 +376,8 @@ thread_set_priority (int new_priority)
 		thread_yield();
   }
   
-  sema_down (&set_priority_sema);
+//  sema_down (&set_priority_sema);
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
