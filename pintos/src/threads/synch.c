@@ -32,11 +32,19 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+
 bool priority_compare
 (const struct list_elem *a, const struct list_elem *b, void *aux);
 
 bool cond_priority_compare
 (const struct list_elem *a, const struct list_elem *b, void *aux);
+
+bool donation_priority_compare
+(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+void priority_donation (void);
+
+void pop_donation_list(struct lock *lock);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -120,9 +128,13 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   sema->value++;
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+  
+  if (!list_empty (&sema->waiters)) {
+	//sort sema waiters list
+	list_sort (&sema->waiters,priority_compare, NULL);    
+	thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
+  }
  // sema->value++;
   intr_set_level (old_level);
 }
@@ -188,6 +200,13 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
+struct donation
+{
+   int thread_priority;
+   struct lock *lock;
+   struct list_elem elem;
+};
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -203,8 +222,26 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  struct thread *t = thread_current();
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  
+  if(!thread_mlfqs && lock->holder != NULL)
+   {
+	struct donation donor;	
+	t->waiting_for_lock = lock;
+	donor.thread_priority = thread_current ()->priority;
+	donor.lock = lock;
+	
+	list_insert_ordered (&lock->holder->donation_list, &donor.elem, donation_priority_compare, NULL);
+	priority_donation();
+	//*..*//
+	
+   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  t->waiting_for_lock = NULL;
+  intr_set_level(old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -221,9 +258,13 @@ lock_try_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
 
+  struct thread *t = thread_current();
   success = sema_try_down (&lock->semaphore);
   if (success)
-    lock->holder = thread_current ();
+    {
+	lock->holder = t; 
+	t->waiting_for_lock = NULL; 
+    }
   return success;
 }
 
@@ -237,10 +278,58 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+  enum intr_level old_level;
+  old_level = intr_disable();
+  
+  if(!thread_mlfqs)
+  {   	
+	struct thread *t = thread_current();
+	struct list *li = &t->donation_list;
+	if(list_empty(li))
+		t->priority = t->original_priority;
+	else
+	{
+		/*traverse through entire list and pop out elements which are in the list because of same lock that's released
+		assign the current priority as the top value in donation_list's priority*/
+		pop_donation_list(lock);
+		if(list_empty(li))
+			t->priority = t->original_priority;		
+		else 
+		{
+			int top_priority = list_entry (list_front (li), struct donation, elem)->thread_priority;
+			t->priority = top_priority;
+		}
 
+	}
+  }
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+  intr_set_level(old_level);
 }
+
+
+//*Handling Inversion - Donating Priority *//
+void
+priority_donation(void)
+{
+  struct thread *curr = thread_current(); 
+  struct lock *lock_wait = curr->waiting_for_lock;
+  int iteration_val = 1;
+  while(iteration_val <= 8 && lock_wait != NULL)
+   {
+	if(lock_wait->holder != NULL && lock_wait->holder->priority < curr->priority)
+	{
+		lock_wait->holder->priority = curr->priority;
+		curr = lock_wait->holder;
+		lock_wait = curr->waiting_for_lock;
+	}
+	else 
+		return;
+	
+	iteration_val++;
+   }
+}
+
 
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
@@ -369,4 +458,33 @@ cond_priority_compare (const struct list_elem *a, const struct list_elem *b, voi
 		return true;
 	
 	return false;
+}
+
+bool
+donation_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	int donation1_priority = list_entry (a, struct donation, elem)->thread_priority;
+	int donation2_priority = list_entry (b, struct donation, elem)->thread_priority;
+
+	if(donation1_priority > donation2_priority)
+		return true;
+	
+	return false;
+}
+
+
+void
+pop_donation_list(struct lock *l)
+{		
+	struct list_elem *e;
+	struct thread *t = thread_current();
+	struct list *li = &t->donation_list;
+	for (e = list_begin (li); e != list_end (li); e = list_next (e))
+	{
+		
+		if(l == list_entry (e, struct donation, elem)->lock)
+			list_remove(e);
+		
+		
+	}
 }

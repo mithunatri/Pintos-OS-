@@ -39,6 +39,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+static struct semaphore set_priority_sema;
+
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -95,6 +98,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  sema_init (&set_priority_sema, 1);
   list_init (&all_list);
 //  list_init (&donation);					//***//
   /* Set up a thread structure for the running thread. */
@@ -357,17 +361,22 @@ void
 thread_set_priority (int new_priority) 
 {
   
-  enum intr_level old_level = intr_disable();
-  ASSERT (intr_get_level() == INTR_OFF);
+  if(thread_mlfqs)
+	return;
+	
+  sema_down (&set_priority_sema);
+	
   thread_current ()->priority = new_priority;
+  thread_current ()->original_priority = new_priority;
   if(!list_empty(&ready_list))
   { 
         struct thread *t = list_entry (list_front (&ready_list), struct thread, elem);
-  	if(thread_current ()->priority < t->priority)
+        
+	if(thread_current ()->priority < t->priority)
 		thread_yield();
   }
-  intr_set_level (old_level);  
-
+  
+  sema_down (&set_priority_sema);
 }
 
 /* Returns the current thread's priority. */
@@ -492,8 +501,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->original_priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  list_init (&t->donation_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -572,7 +583,7 @@ thread_schedule_tail (struct thread *prev)
 /* Schedules a new process.  At entry, interrupts must be off and
    the running process's state must have been changed from
    running to some other state.  This function finds another
-   thread to run and switches to it.
+   thread to run and switches to it..
 
    It's not safe to call printf() until thread_schedule_tail()
    has completed. */
