@@ -46,7 +46,6 @@ void priority_donation (void);
 
 void pop_donation_list(struct lock *lock);
 
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -131,12 +130,10 @@ sema_up (struct semaphore *sema)
   sema->value++;
   
   if (!list_empty (&sema->waiters)) {
-	//sort sema waiters list
 	list_sort (&sema->waiters,priority_compare, NULL);    
 	thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   }
- // sema->value++;
   intr_set_level (old_level);
 }
 
@@ -203,10 +200,10 @@ lock_init (struct lock *lock)
 
 struct donation
 {
+   tid_t tid;
    int thread_priority;
    struct lock *lock;
    struct list_elem elem;
-   tid_t tid;
 };
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -233,20 +230,17 @@ lock_acquire (struct lock *lock)
 	struct donation donor;	
 	t->waiting_for_lock = lock;
 	donor.thread_priority = thread_current ()->priority;
-	donor.lock = lock;
 	donor.tid = thread_current ()->tid;
+        donor.lock = lock;
 	
 	list_insert_ordered (&lock->holder->donation_list, &donor.elem, donation_priority_compare, NULL);
 	priority_donation();
 	//*..*//
 	
    }
-  if(lock->holder != thread_current ())
-  {
-  	sema_down (&lock->semaphore);
-  	lock->holder = thread_current ();
-	  t->waiting_for_lock = NULL;
-  }
+  sema_down (&lock->semaphore);
+  lock->holder = thread_current ();
+  t->waiting_for_lock = NULL;
   intr_set_level(old_level);
 }
 
@@ -326,26 +320,23 @@ priority_donation(void)
 	if(lock_wait->holder != NULL && lock_wait->holder->priority < curr->priority)
 	{
 		lock_wait->holder->priority = curr->priority;
-		lock_wait->holder->priority = curr->priority;
-                /* If tid is already present in the donation_list of the lock holder,
-                   update the priority within the donation_list*/
-                struct list_elem *e;
-                struct list h_donation = lock_wait->holder->donation_list;
-                if(!list_empty (&h_donation))
-                {
-                //      for (e = list_begin (&h_donation); e != list_end (&h_donation); e = list_next (e))
-                        e = list_head (&h_donation);
-                        while ((e = list_next (e)) != list_end (&h_donation))
-                        {
-                                struct donation *existing_donation = list_entry (e, struct donation, elem);
-
-                                if(existing_donation->tid == curr->tid){
-                                        existing_donation->thread_priority = curr->priority;
-                                        break;
-                                }
-                        }
-                }
-
+		/* If tid is already present in the donation_list of the lock holder,
+		   update the priority within the donation_list*/
+		struct list_elem *e;
+		struct list h_donation = lock_wait->holder->donation_list;
+		if(!list_empty (&h_donation))
+		{
+			e = list_head (&h_donation);
+      			while ((e = list_next (e)) != list_end (&h_donation)) 
+			{
+				struct donation *existing_donation = list_entry (e, struct donation, elem);
+			
+				if(existing_donation->tid == curr->tid){
+					existing_donation->thread_priority = curr->priority;
+					break;
+				}
+			}
+		}
 		curr = lock_wait->holder;
 		lock_wait = curr->waiting_for_lock;
 	}
@@ -501,12 +492,10 @@ donation_priority_compare (const struct list_elem *a, const struct list_elem *b,
 
 void
 pop_donation_list(struct lock *l)
-{	
-		
+{		
 	struct list_elem *e;
 	struct thread *t = thread_current();
 	struct list *li = &t->donation_list;
-	
 	for (e = list_begin (li); e != list_end (li); e = list_next (e))
 	{
 		

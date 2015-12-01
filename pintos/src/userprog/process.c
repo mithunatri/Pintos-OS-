@@ -30,14 +30,14 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-
+//  printf("\nprocess_create");
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+//  printf("\nBefore thread create");
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -59,13 +59,14 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+ // printf("\nbefore load");
   success = load (file_name, &if_.eip, &if_.esp);
-
+//  printf("\nload success");
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
-
+  //printf("\nafter thread_exit()");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -88,6 +89,10 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  
+  while(1){
+  }
+	
   return -1;
 }
 
@@ -220,7 +225,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
-
+// printf("\n before filesys_open");
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -431,13 +436,13 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
-
+//  printf("\n\ninside setup_stack");
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE-48;		//Temporary
       else
         palloc_free_page (kpage);
     }

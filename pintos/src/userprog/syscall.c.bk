@@ -1,0 +1,222 @@
+#include "userprog/syscall.h"
+#include <stdio.h>
+#include <syscall-nr.h>
+#include "threads/interrupt.h"
+#include "threads/vaddr.h"
+#include "threads/thread.h"
+#include "threads/synch.h"
+#include "devices/shutdown.h"
+#include "process.h"
+#include "pagedir.h"
+
+#define MAX_BUFFER_SIZE 256
+static void 	syscall_handler (struct intr_frame *);
+
+static void 	sys_halt (void);
+static void 	sys_exit (int);
+static void 	sys_exec (void);
+static void 	sys_wait (void);
+static void 	sys_create (void);
+static void 	sys_remove (int);
+static int  	sys_open (const void *);
+static int  	sys_filesize (int);
+static int  	sys_read (int, const void *, unsigned);
+static void 	sys_write (int, const char *, unsigned);
+static void 	sys_seek (int);
+static int  	sys_tell (int);
+static void 	sys_close (int);
+
+
+static struct 	lock g_file_lock;
+
+
+void
+syscall_init (void) 
+{
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&g_file_lock);
+}
+
+static void*
+address_chk (const void *ptr){
+
+
+	if ( ptr==NULL || !is_user_vaddr (ptr) || 
+		pagedir_get_page (thread_current()->pagedir, ptr) == NULL ){
+
+		sys_exit(-1);
+	}
+
+	return pagedir_get_page (thread_current()->pagedir, ptr);
+
+}
+
+
+static void
+syscall_handler (struct intr_frame *f UNUSED) 
+{
+
+  uint32_t *stack_ptr=(uint32_t *)f->esp;
+ 
+  uint32_t syscall_number=*stack_ptr;
+  printf("\n\nSyscall Number: %d", (int) syscall_number); 
+  uint32_t args[2];
+  switch(syscall_number){
+
+	case SYS_HALT:
+	 	sys_halt();
+		break;
+
+	case SYS_EXIT:	
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		sys_exit ((int) args[0]);
+		break;
+
+	case SYS_EXEC:
+		sys_exec();
+		break;
+
+	case SYS_WAIT:	
+		sys_wait();
+		break;
+
+	case SYS_CREATE:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		sys_create();
+		break;
+
+	case SYS_REMOVE:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		sys_remove ((int) args[0]);
+		break;
+
+	case SYS_OPEN:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+                f->eax=(int) sys_open ((const void *)(stack_ptr+1));
+		break;
+
+	case SYS_FILESIZE:
+		 args[0] = *(uint32_t *)address_chk (stack_ptr+1);		           
+		 f->eax=(int) sys_filesize ((int) args[0]);
+		 break;
+
+	case SYS_READ:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
+                args[2] = *(uint32_t *)address_chk (stack_ptr+3);
+                f->eax=(int) sys_read ((int) args[0], (const void *) args[1], (int)args[2]);
+		break;
+
+	case SYS_WRITE:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
+		args[2] = *(uint32_t *)(stack_ptr+3);
+		sys_write ((int)args[0], (const void*) args[1], (int)args[2]);		//change argument 1
+		break;
+
+	case SYS_SEEK:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		sys_seek ((int) args[0]);
+		break;
+
+	case SYS_TELL:
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		f->eax=(int) sys_tell ((int) args[0]);
+		break;
+
+	case SYS_CLOSE:	
+		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
+		sys_close ((int) args[0]);
+		break;
+
+	default:	
+		sys_exit(-1);
+  }
+  printf("\nSystem call!");
+  thread_exit ();
+}
+
+/**Halt System Call **/
+static void
+sys_halt (void){
+
+	shutdown_power_off ();
+
+}
+
+static void
+sys_exit (int status){
+	printf("\nExit Status code %d", status);
+	thread_exit();
+}
+
+static void
+sys_exec (void){
+	printf("\nExec");
+}
+
+static void
+sys_wait (void){
+	printf("\nWait");
+}
+
+static void
+sys_create (void){
+	printf("\nCreate");
+}
+
+static void 
+sys_remove (int fd){
+	printf("\nCreate");
+}
+
+static int
+sys_open (const void *filename){
+	printf("\nOpen");
+
+	return 2;
+}
+
+static int 
+sys_filesize (int fd){
+	printf("\nFilesize");
+	return 1;
+}
+
+static int
+sys_read (int fd, const void *buffer, unsigned size){
+	printf("\nRead");
+
+	return 1;
+}
+
+static void
+sys_write (int fd, const char *buffer, unsigned size){
+
+	//buffer_chk(buffer, 0);
+
+	if (fd == STDOUT_FILENO){
+	
+		putbuf(buffer, size);			//Need to implement buffer block size
+	
+	}
+
+	printf("\nWrite");
+}
+
+static void 
+sys_seek (int fd){
+	printf("\nSeek");
+}
+
+static int 
+sys_tell (int fd){
+	printf("\nTell");
+	
+	return 1;
+}
+
+static void
+sys_close (int fd){
+	printf("\nClose");
+}
