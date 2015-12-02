@@ -17,7 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#include "threads/malloc.h"
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -30,14 +30,14 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-//  printf("\nprocess_create");
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-//  printf("\nBefore thread create");
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -59,14 +59,69 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
- // printf("\nbefore load");
+
+  char *token;
+  char *saveptr; 
+  //char *exec_file;
+ 
+  char **argv_to_populate= (char**) malloc(strlen(file_name)*sizeof(char *));
+  int argc=0;
+  int args_len=0;
+  int i;
+
+  for(token=strtok_r(file_name," ",&saveptr);
+        token != NULL;
+          token=strtok_r(NULL, " ", &saveptr))
+  {
+    argv_to_populate[argc]=token;
+    argc++;
+    args_len=args_len+strlen(token)+1;
+  }
+  file_name=argv_to_populate[0]; 
   success = load (file_name, &if_.eip, &if_.esp);
-//  printf("\nload success");
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
+
   if (!success) 
     thread_exit ();
-  //printf("\nafter thread_exit()");
+  
+  int **addr = (int **) malloc (argc * sizeof(int *));   
+  int arg_len; 
+  for(i=argc;i>0;i--)
+  {
+    arg_len=strlen(argv_to_populate[i-1])+1;
+    if_.esp = if_.esp-(arg_len);
+    memcpy(if_.esp,argv_to_populate[i-1],arg_len);
+    addr[i-1]=if_.esp;
+  }
+  //hex_dump(if_.esp-54,if_.esp,54,true);
+  int offset_align = args_len % 4;
+  if_.esp = if_.esp - (4 - (offset_align != 0 ? 4 - offset_align : 0)) ; 
+  for(i=(4-offset_align)+4;i>0;i--)
+  {
+    memset(if_.esp-i-1,0,sizeof(int));
+  }
+  if_.esp-=4;
+  //hex_dump(if_.esp-60,if_.esp,60,true);
+  for(i=argc;i>0;i--)
+  {
+    if_.esp-= sizeof(int *);
+    *(void **) (if_.esp) = addr[i-1];
+  }
+//  hex_dump(if_.esp-152,if_.esp,152,true);
+  char *argv_ptr;
+
+  argv_ptr=&if_.esp;
+  if_.esp-= sizeof(char *);
+  memcpy(if_.esp, argv_ptr, sizeof(char **));
+  if_.esp-=sizeof(int *);
+  memcpy(if_.esp, &argc, sizeof(int));
+  if_.esp -= sizeof(void *);
+   *(int *) if_.esp = 0;
+  hex_dump(if_.esp - 164,if_.esp,164,true);
+  free(argv_to_populate);
+  free(addr);
+  /* If load failed, quit. */
+  palloc_free_page (file_name);
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -83,17 +138,12 @@ start_process (void *file_name_)
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
    immediately, without waiting.
-
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  
-  while(1){
-  }
-	
-  return -1;
+   while(1);
 }
 
 /* Free the current process's resources. */
@@ -136,7 +186,8 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -225,7 +276,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
-// printf("\n before filesys_open");
+
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -320,7 +371,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
-
+
+
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -373,15 +425,11 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 /* Loads a segment starting at offset OFS in FILE at address
    UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
    memory are initialized, as follows:
-
         - READ_BYTES bytes at UPAGE must be read from FILE
           starting at offset OFS.
-
         - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-
    The pages initialized by this function must be writable by the
    user process if WRITABLE is true, read-only otherwise.
-
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
@@ -436,13 +484,13 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
-//  printf("\n\ninside setup_stack");
+
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE-48;		//Temporary
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }

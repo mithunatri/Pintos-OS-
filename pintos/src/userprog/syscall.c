@@ -106,7 +106,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   uint32_t *stack_ptr=(uint32_t *)f->esp;
  
   uint32_t syscall_number=*stack_ptr;
-  printf("\n\nSyscall Number: %d", (int) syscall_number); 
+//  printf("\n\nSyscall Number: %d", (int) syscall_number); 
   uint32_t args[2];
   switch(syscall_number){
 
@@ -183,8 +183,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 	default:	
 		sys_exit(-1);
   }
-  printf("\nSystem call!");
-  thread_exit ();
+  //printf("\nSystem call!");
+
+  return f->eax;
+  //thread_exit ();
 }
 
 /**Halt System Call **/
@@ -290,7 +292,9 @@ sys_filesize (int fd) {
 static int
 sys_read (int fd, const void *buffer, unsigned size){
 
-	if(!buffer_chk (buffer, size) || !fd_valid (fd))	sys_exit (SYS_ERROR);
+	if(!buffer_chk (buffer, size) || (fd != STDIN_FILENO && !fd_valid (fd))) {
+		  sys_exit (SYS_ERROR);
+	}
 
 	int read_size = 0;
 
@@ -318,7 +322,9 @@ sys_read (int fd, const void *buffer, unsigned size){
 static int 
 sys_write (int fd, const char *buffer, unsigned size) {
 
-	if(!buffer_chk (buffer, size) || !fd_valid (fd))	sys_exit (SYS_ERROR);
+	if(!buffer_chk (buffer, size) || (fd != STDOUT_FILENO && !fd_valid (fd))) {
+		sys_exit (SYS_ERROR);
+	}
 
 	int write_size = 0;
 	if (fd == STDOUT_FILENO){
@@ -345,7 +351,7 @@ sys_write (int fd, const char *buffer, unsigned size) {
 		lock_release (&g_file_lock);
 	}		
 
-	printf("\nWrite");
+//	printf("\nWrite");
 	return write_size;
 }
 
