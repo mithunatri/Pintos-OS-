@@ -17,7 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#include "threads/malloc.h"
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -59,12 +59,68 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
+  char *token;
+  char *saveptr; 
+  //char *exec_file;
+ 
+  char **argv_to_populate= (char**) malloc(strlen(file_name)*sizeof(char *));
+  int argc=0;
+  int args_len=0;
+  int i;
+
+  for(token=strtok_r(file_name," ",&saveptr);
+        token != NULL;
+          token=strtok_r(NULL, " ", &saveptr))
+  {
+    argv_to_populate[argc]=token;
+    argc++;
+    args_len=args_len+strlen(token)+1;
+  }
+  file_name=argv_to_populate[0]; 
   success = load (file_name, &if_.eip, &if_.esp);
 
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+  
+  int **addr = (int **) malloc (argc * sizeof(int *));   
+  int arg_len; 
+  for(i=argc;i>0;i--)
+  {
+    arg_len=strlen(argv_to_populate[i-1])+1;
+    if_.esp = if_.esp-(arg_len);
+    memcpy(if_.esp,argv_to_populate[i-1],arg_len);
+    addr[i-1]=if_.esp;
+  }
+  //hex_dump(if_.esp-54,if_.esp,54,true);
+  int offset_align = args_len % 4;
+  if_.esp = if_.esp - (4 - (offset_align != 0 ? 4 - offset_align : 0)) ; 
+  for(i=(4-offset_align)+4;i>0;i--)
+  {
+    memset(if_.esp-i-1,0,sizeof(int));
+  }
+  if_.esp-=4;
+  //hex_dump(if_.esp-60,if_.esp,60,true);
+  for(i=argc;i>0;i--)
+  {
+    if_.esp-= sizeof(int *);
+    *(void **) (if_.esp) = addr[i-1];
+  }
+//  hex_dump(if_.esp-152,if_.esp,152,true);
+  char *argv_ptr;
+
+  argv_ptr=&if_.esp;
+  if_.esp-= sizeof(char *);
+  memcpy(if_.esp, argv_ptr, sizeof(char **));
+  if_.esp-=sizeof(int *);
+  memcpy(if_.esp, &argc, sizeof(int));
+  if_.esp -= sizeof(void *);
+   *(int *) if_.esp = 0;
+  hex_dump(if_.esp - 164,if_.esp,164,true);
+  free(argv_to_populate);
+  free(addr);
+  /* If load failed, quit. */
+  palloc_free_page (file_name);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -88,7 +144,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+   while(1);
 }
 
 /* Free the current process's resources. */
@@ -131,7 +187,8 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -315,7 +372,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
-
+
+
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
