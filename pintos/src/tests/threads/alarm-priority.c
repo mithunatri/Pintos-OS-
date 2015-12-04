@@ -2,6 +2,7 @@
    higher-priority threads run first. */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include "tests/threads/tests.h"
 #include "threads/init.h"
 #include "threads/malloc.h"
@@ -46,6 +47,7 @@ alarm_priority_thread (void *aux UNUSED)
   while (timer_elapsed (start_time) == 0)
     continue;
 
+ // printf("\n%s Thread going to sleep for %" PRId64 "", thread_name (), wake_time - timer_ticks());
   /* Now we know we're at the very beginning of a timer tick, so
      we can call timer_sleep() without worrying about races
      between checking the time and a timer interrupt. */

@@ -113,8 +113,6 @@ sub parse_command_line {
     $align = "bochs",
       print STDERR "warning: setting --align=bochs for Bochs support\n"
 	if $sim eq 'bochs' && defined ($align) && $align eq 'none';
-
-    $kill_on_failure = 0;
 }
 
 # usage($exitcode).

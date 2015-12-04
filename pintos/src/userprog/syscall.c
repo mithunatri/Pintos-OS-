@@ -199,7 +199,7 @@ sys_halt (void){
 
 static void
 sys_exit (int status){
-	printf("\nExit Status code %d", status);
+	printf("%s: exit(%d)", thread_current()->name,status);
 	thread_exit();
 }
 

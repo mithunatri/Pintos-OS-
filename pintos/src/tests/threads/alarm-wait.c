@@ -90,6 +90,7 @@ test_sleep (int thread_cnt, int iterations)
       t->iterations = 0;
 
       snprintf (name, sizeof name, "thread %d", i);
+      printf("\n\nGo create a thread. default priority, sleeper function");
       thread_create (name, PRI_DEFAULT, sleeper, t);
     }
   

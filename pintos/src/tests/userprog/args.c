@@ -10,7 +10,8 @@ main (int argc, char *argv[])
 {
   int i;
 
-  test_name = "args";
+  //test_name = "args";
+  test_name  = argv[0];
 
   msg ("begin");
   msg ("argc = %d", argc);
