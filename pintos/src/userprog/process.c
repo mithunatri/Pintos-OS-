@@ -95,18 +95,18 @@ start_process (void *file_name_)
     memcpy(if_.esp,argv_to_populate[i-1],arg_len);
     addr[i-1]=if_.esp;
   //}
-  //hex_dump(if_.esp-54,if_.esp,54,true);
+ hex_dump(if_.esp-54,if_.esp,54,true);
   }
   int offset_align = args_len % 4;
   if_.esp = if_.esp - (offset_align != 0 ? 4 - offset_align : 0) ; 
-  if(offset_align != 0)
-  {
-   for(i=(4-offset_align);i>0;i--)
-   {
-     memset(if_.esp-i-1,0,sizeof(int));
-   }
-  }
-  //hex_dump(if_.esp-60,if_.esp,60,true);
+  //if(offset_align != 0)
+  //{
+  // for(i=(4-offset_align);i>0;i--)
+  // {
+  //   memset(if_.esp-i-1,0,sizeof(int));
+  // }
+  //}
+ hex_dump(if_.esp-60,if_.esp,60,true);
   if_.esp-=4;
   for(i=4;i>0;i--)
   {
@@ -130,7 +130,7 @@ start_process (void *file_name_)
   memcpy(if_.esp, &argc, sizeof(int));
   if_.esp -= sizeof(void *);
    *(int *) if_.esp = 0;
-  //hex_dump(if_.esp - 164,if_.esp,164,true);
+  hex_dump(if_.esp - 164,if_.esp,164,true);
   free(argv_to_populate);
   free(addr);
   /* If load failed, quit. */
