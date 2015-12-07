@@ -95,7 +95,7 @@ start_process (void *file_name_)
     memcpy(if_.esp,argv_to_populate[i-1],arg_len);
     addr[i-1]=if_.esp;
   //}
-  //hex_dump(if_.esp-54,if_.esp,54,true);
+ hex_dump(if_.esp-54,if_.esp,54,true);
   }
   int offset_align = args_len % 4;
   int j= if_.esp ;

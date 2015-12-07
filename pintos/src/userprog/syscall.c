@@ -66,7 +66,7 @@ start address of the buffer. **/
 static bool 
 buffer_chk (const void *buffer, unsigned size) {
  	
-         if (size == 0) return false;
+    //     if (size == 0) return false;
  	
 	 const void *next_address=buffer; 
 	/*If size of buffer is less than one full page, then check
@@ -94,7 +94,7 @@ if invalid. **/
 static bool
 fd_valid (int fd) {
 
-	if (thread_current ()->fd_array[fd] == NULL ) return false;
+	if (fd > 128 || thread_current ()->fd_array[fd] == NULL ) return false;
 
 	return true;
 }
@@ -132,7 +132,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_CREATE:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
 		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
-		f->eax = (bool) sys_create ((const void*) args[0], (unsigned) args[1]);
+		f->eax = (uint32_t) sys_create ((const void*) args[0], (unsigned) args[1]);
 		break;
 
 	case SYS_REMOVE:
@@ -142,7 +142,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	case SYS_OPEN:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
-                f->eax = (int) sys_open ((const void *)(stack_ptr+1));
+                f->eax = (int) sys_open ((const void *)args[0]);
 		break;
 
 	case SYS_FILESIZE:
@@ -160,7 +160,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_WRITE:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
 		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
-		args[2] = *(uint32_t *)(stack_ptr+3);
+		args[2] = *(uint32_t *)address_chk (stack_ptr+3);
 		f->eax = (int) sys_write ((int)args[0], (const void*) args[1], (int)args[2]);
 		break;
 
@@ -267,6 +267,7 @@ sys_open (const void *filename) {
 		
 			current->fd_array[index]=file;
 			fd = index;
+			break;
 		}
 	}			
 				
