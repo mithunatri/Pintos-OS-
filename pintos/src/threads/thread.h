@@ -105,12 +105,25 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd_array[128];		/* File descriptor array */
+    int parent_pid; 		/* pid/tid of parent process */
+    struct list *children_list;
+ 
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
-
+#ifdef USERPROG
+ struct children_info
+  {
+    int  pid;
+    int exit_status;
+    struct list_elem elem;
+    bool child_alive;           /* If TRUE, the child is alive, else the child has exited */
+    bool parent_waited; /* Changed to TRUE if the parent process has already waited on this child */
+    struct semaphore *sema_wait_child;   /* Synchronization primitive to ensure parent waits until child exits */
+  };
+#endif
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */

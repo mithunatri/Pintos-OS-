@@ -98,10 +98,11 @@ start_process (void *file_name_)
   //hex_dump(if_.esp-54,if_.esp,54,true);
   }
   int offset_align = args_len % 4;
+  int j= if_.esp ;
   if_.esp = if_.esp - (offset_align != 0 ? 4 - offset_align : 0) ; 
   if(offset_align != 0)
   {
-   for(i=(4-offset_align);i>0;i--)
+   for(i=1;i<(4-offset_align);i++)
    {
      memset(if_.esp-i-1,0,sizeof(int));
    }
@@ -130,7 +131,7 @@ start_process (void *file_name_)
   memcpy(if_.esp, &argc, sizeof(int));
   if_.esp -= sizeof(void *);
    *(int *) if_.esp = 0;
-  //hex_dump(if_.esp - 164,if_.esp,164,true);
+  hex_dump(if_.esp - 164,if_.esp,164,true);
   free(argv_to_populate);
   free(addr);
   /* If load failed, quit. */
