@@ -14,6 +14,7 @@
 #include "lib/fixed_point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "threads/malloc.h"
 #endif
 
 //** Need to use list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, void *aux)
@@ -193,6 +194,14 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  struct children_info *child = malloc(sizeof(struct children_info));
+  child->pid = tid;
+  t->parent_pid=thread_tid();
+  child->child_alive=true;
+  child->parent_waited=false;
+ //sema_init(&child->sema_wait_child,0);
+  list_push_back (&thread_current()->children_list,&child->elem);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -528,6 +537,7 @@ init_thread (struct thread *t, const char *name, int priority)
   //*t->fd_array[128] = {{ NULL }};
   int i;
   for (i=0; i<128; i++)	t->fd_array[i] = NULL;
+  list_init (&t->children_list);
   list_init (&t->donation_list);
 }
 
@@ -742,3 +752,16 @@ incr_recent_cpu()
   return;
 }
 
+struct thread *
+get_thread_by_tid (int tid)
+{
+   struct list_elem *e;
+ 
+   for (e = list_begin (&all_list); e != list_end(&all_list); e = list_next (e))
+     {
+       struct thread *t = list_entry (e, struct thread, allelem);
+       if( t -> tid == tid) return t;
+     }
+ 
+     return NULL;
+}

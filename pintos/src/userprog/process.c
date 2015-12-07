@@ -31,7 +31,7 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
   char *cmd_name;
-  char **ptr;
+  char *ptr;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -95,10 +95,9 @@ start_process (void *file_name_)
     memcpy(if_.esp,argv_to_populate[i-1],arg_len);
     addr[i-1]=if_.esp;
   //}
- hex_dump(if_.esp-54,if_.esp,54,true);
+  //hex_dump(if_.esp-54,if_.esp,54,true);
   }
   int offset_align = args_len % 4;
-  int j= if_.esp ;
   if_.esp = if_.esp - (offset_align != 0 ? 4 - offset_align : 0) ; 
   if(offset_align != 0)
   {
@@ -156,10 +155,47 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-   while(1);
-}
+   while(child_tid);
+   /*struct thread *cur = thread_current();
+   struct list_elem *e;
+   struct children_info *c;
+   for(e=list_begin(&cur->children_list); e!=list_end(&cur->children_list);e=list_next(e))
+   {
+      c = list_entry(e,struct children_info,elem);
+      if(c->pid == child_tid)
+        break;
+   }
+   if(c==NULL)
+      return -1;
+   else
+   {
+      if(c->parent_waited==true)
+         return -1;
+      else
+      {
+         if(c->child_alive==false)
+         {
+            int ret_exit = c->exit_status;
+            list_remove (&c->elem);
+            free(c);
+            return ret_exit;
+         } 
+         else
+         {
+            c->parent_waited=true;
+            sema_down(c->sema_wait_child);
+            int ret_exit = c->exit_status;
+            list_remove (&c->elem);
+            free(c);
+            return ret_exit;
+         }
+      }
+    }
+    return -1;*/
+}	
+            
 
 /* Free the current process's resources. */
 void
