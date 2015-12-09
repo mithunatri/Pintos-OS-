@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "filesys/file.h"
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -95,7 +96,7 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     int nice;                           /* Nice value of the thread*/
-    int f_recent_cpu;                 /*Total time this thread was in cpu*/
+    int f_recent_cpu;                 	/*Total time this thread was in cpu*/
     
     int original_priority; 		//* Maintaining an initial value priority*//
     struct lock *waiting_for_lock;	//* List of locks thread is waiting on *//
@@ -105,24 +106,26 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd_array[128];		/* File descriptor array */
-    int parent_pid; 		/* pid/tid of parent process */
+    //int parent_pid; 			/* pid/tid of parent process */
+    struct process_info *info;		/* Additional info about thread. */	
     struct list children_list;
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
-#ifdef USERPROG
- struct children_info
+//#ifdef USERPROG
+ struct process_info
   {
     int  pid;
     int exit_status;
     struct list_elem elem;
-    bool child_alive;           	/* If TRUE, the child is alive, else the child has exited */
+    bool alive;           		/* If TRUE, the child is alive, else the child has exited */
+    bool parent_alive;			/* If TRUE, parent is alive, else parent has already exited.*/		
     bool parent_waited; 		/* Changed to TRUE if the parent process has already waited on this child */
-    struct semaphore *sema_wait_child;  /* Synchronization primitive to ensure parent waits until child exits */
+    struct semaphore sema_wait_child;  /* Synchronization primitive to ensure parent waits until child exits */
   };
-#endif
+//#endif
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
