@@ -1,18 +1,19 @@
 #include <stddef.h>
-#include "userprog/syscall.h"
+#include <stdbool.h>
 #include <stdio.h>
-#include <syscall-nr.h>
 #include <string.h>
-#include "threads/interrupt.h"
-#include "threads/vaddr.h"
-#include "threads/thread.h"
-#include "threads/synch.h"
-#include "devices/shutdown.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
+#include <syscall-nr.h>
+#include "syscall.h"
 #include "process.h"
 #include "pagedir.h"
 #include "devices/input.h"
+#include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "threads/interrupt.h"
+#include "threads/synch.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
 
 #define MAX_BUFFER_SIZE 256
 #define SYS_ERROR -1
@@ -23,11 +24,11 @@ static void 	sys_halt (void);
 static void 	sys_exit (int);
 static int 	sys_exec (const void *);
 static int 	sys_wait (int);
-static bool 	sys_create (const void *, unsigned);
-static bool 	sys_remove (const void *);
-static int  	sys_open (const void *);
+static bool 	sys_create (const char *, unsigned);
+static bool 	sys_remove (const char *);
+static int  	sys_open (const char *);
 static int  	sys_filesize (int);
-static int  	sys_read (int, const void *, unsigned);
+static int  	sys_read (int, const char *, unsigned);
 static int 	sys_write (int, const char *, unsigned);
 static void 	sys_seek (int, int);
 static int  	sys_tell (int);
@@ -64,9 +65,9 @@ address_chk (const void *ptr) {
 mapped. If not, invokes sys_exit with -1 status code. Else, returns the
 start address of the buffer. **/
 static bool 
-buffer_chk (const void *buffer, unsigned size) {
+buffer_chk (const char *buffer, unsigned size) {
  	
-    //     if (size == 0) return false;
+//         if (buffer == NULL) return false;
  	
 	 const void *next_address=buffer; 
 	/*If size of buffer is less than one full page, then check
@@ -89,6 +90,25 @@ buffer_chk (const void *buffer, unsigned size) {
 	return true;
 }
 
+/*Check whether the filename is valid/invalid. We need to verify if each
+character of the filename is mapped in memory. Additionaly, file names are
+limited to 14 characters.*/
+/*static bool
+file_valid (const char *filename) {
+
+	int i;
+	for (i=0; i <= 14; i++) {
+	
+		filename++;
+	
+		if (filename == NULL) return false;
+		else if (*filename == '\0') return true;
+	}
+	
+	//If filesize is greater than max_file_size, invalid file.
+	return false;
+}*/
+
 /**Function to check if FD is valid for the process. Return false
 if invalid. **/
 static bool
@@ -102,13 +122,20 @@ fd_valid (int fd) {
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-
-  uint32_t *stack_ptr=(uint32_t *)f->esp;
+  printf("\nABC");
+  if (!f->esp)	sys_exit (SYS_ERROR); 
  
-  uint32_t syscall_number=*stack_ptr;
-//  printf("\n\nSyscall Number: %d", (int) syscall_number); 
+  uint32_t *stack_ptr=(uint32_t *)f->esp;
+
+  if (pagedir_get_page (thread_current ()->pagedir, stack_ptr) == NULL) {
+	sys_exit (SYS_ERROR);
+  }
+ 
+  int syscall_number=*(int *)stack_ptr;
+  //printf("\n\nSyscall Number: %d", (int) syscall_number); 
+  
   uint32_t args[2];
-  switch(syscall_number){
+  switch (syscall_number){
 
 	case SYS_HALT:
 	 	sys_halt();
@@ -132,17 +159,17 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_CREATE:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
 		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
-		f->eax = (uint32_t) sys_create ((const void*) args[0], (unsigned) args[1]);
+		f->eax = (uint32_t) sys_create ((const char *) args[0], (unsigned) args[1]);
 		break;
 
 	case SYS_REMOVE:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
-		f->eax = (bool) sys_remove ((const void*) args[0]);
+		f->eax = (bool) sys_remove ((const char *) args[0]);
 		break;
 
 	case SYS_OPEN:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
-                f->eax = (int) sys_open ((const void *)args[0]);
+                f->eax = (int) sys_open ((const char *)args[0]);
 		break;
 
 	case SYS_FILESIZE:
@@ -154,14 +181,14 @@ syscall_handler (struct intr_frame *f UNUSED)
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
 		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
                 args[2] = *(uint32_t *)address_chk (stack_ptr+3);
-                f->eax = (int) sys_read ((int) args[0], (const void *) args[1], (int)args[2]);
+                f->eax = (int) sys_read ((int) args[0], (const char *) args[1], (int)args[2]);
 		break;
 
 	case SYS_WRITE:
 		args[0] = *(uint32_t *)address_chk (stack_ptr+1);
 		args[1] = *(uint32_t *)address_chk (stack_ptr+2);
 		args[2] = *(uint32_t *)address_chk (stack_ptr+3);
-		f->eax = (int) sys_write ((int)args[0], (const void*) args[1], (int)args[2]);
+		f->eax = (int) sys_write ((int)args[0], (const char *) args[1], (int)args[2]);
 		break;
 
 	case SYS_SEEK:
@@ -181,12 +208,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 		break;
 
 	default:	
-		sys_exit(-1);
+		sys_exit (SYS_ERROR);
+		break;
   }
-  //printf("\nSystem call!");
 
   return f->eax;
-  //thread_exit ();
 }
 
 /**Halt System Call **/
@@ -197,10 +223,40 @@ sys_halt (void){
 
 }
 
+/**Exit System Call **/
 static void
 sys_exit (int status){
-	printf("%s: exit(%d)", thread_current()->name,status);
-	thread_exit();
+	struct thread *cur = thread_current ();
+
+	/*Close all open files. Dereference file entry in fd_array.*/
+	int index;
+	for (index = 2; index < 128; index ++) {
+	
+		if (cur->fd_array[index] != NULL) {
+			file_close (cur->fd_array[index]);
+			cur->fd_array[index]=NULL;
+		}
+	}
+	printf("%s: exit(%d)\n", cur->name,status);
+
+	cur->info->alive = false;
+       	cur->info->exit_status = status;
+	/*Iterate through children_list and update each child's parent_alive variable to false.*/
+	struct list_elem *e;
+   	for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list)
+									;e=list_next(e)) {
+   
+		struct process_info *c = list_entry (e,struct process_info,elem);
+		c->parent_alive = false;
+	
+	 }
+
+	/*If parent is not alive, free current thread's info.*/ 	
+	if (!cur->info->parent_alive)
+		free (cur->info);
+
+	sema_up (&cur->info->sema_wait_child);
+	thread_exit ();
 }
 
 static int
@@ -211,14 +267,20 @@ sys_exec (const void *buffer){
 
 static int
 sys_wait (int pid){
-	printf("\nWait");
-	return 1;
+	
+	int exit_status = process_wait (pid);
+	return exit_status;
 }
 
 static bool 
-sys_create (const void *filename, unsigned size){
+sys_create (const char *filename, unsigned size){
 	
-	if(!buffer_chk (filename, strlen (filename)))	sys_exit (SYS_ERROR);
+  	/*if (pagedir_get_page (thread_current ()->pagedir, filename) == NULL) {
+		sys_exit (SYS_ERROR);
+ 	 }*/
+	if(filename == NULL || !address_chk (filename) || !buffer_chk (filename, strlen (filename))) { 
+		sys_exit (SYS_ERROR);
+	}
 
 	lock_acquire (&g_file_lock);
 	
@@ -230,9 +292,11 @@ sys_create (const void *filename, unsigned size){
 }
 
 static bool 
-sys_remove (const void *filename) {
+sys_remove (const char *filename) {
 
-	if (!buffer_chk (filename, strlen (filename)))     sys_exit (SYS_ERROR);
+	if(filename == NULL || !buffer_chk (filename, strlen (filename))) {
+		sys_exit (SYS_ERROR);
+	}
 
 	lock_acquire (&g_file_lock);
 	
@@ -244,9 +308,11 @@ sys_remove (const void *filename) {
 }
 
 static int
-sys_open (const void *filename) {
+sys_open (const char *filename) {
 
-	if(!buffer_chk (filename, strlen (filename)))	sys_exit (SYS_ERROR);
+	if(filename == NULL || !address_chk (filename) || !buffer_chk (filename, strlen (filename))) {
+		sys_exit (SYS_ERROR);
+	}
 
 	lock_acquire (&g_file_lock);
 
@@ -291,9 +357,9 @@ sys_filesize (int fd) {
 }
 
 static int
-sys_read (int fd, const void *buffer, unsigned size){
+sys_read (int fd, const char *buffer, unsigned size){
 
-	if(!buffer_chk (buffer, size) || (fd != STDIN_FILENO && !fd_valid (fd))) {
+	if(!address_chk (buffer) || !buffer_chk (buffer, size) || (fd != STDIN_FILENO && !fd_valid (fd))) {
 		  sys_exit (SYS_ERROR);
 	}
 
