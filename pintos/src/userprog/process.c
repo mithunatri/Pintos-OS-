@@ -56,7 +56,6 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  printf("\n within start_process");
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -218,6 +217,24 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  printf("%s: exit(%d)\n", cur->name,cur->exit_status);
+
+  cur->info->alive = false;
+  cur->info->exit_status = cur->exit_status;
+  /*Iterate through children_list and update each child's parent_alive variable to false.*/
+  struct list_elem *e;
+  for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list)
+									;e=list_next(e)) {
+  		struct process_info *c = list_entry (e,struct process_info,elem);
+		c->parent_alive = false;
+	
+  }
+
+  /*If parent is not alive, free current thread's info.*/ 	
+  if (!cur->info->parent_alive)
+	free (cur->info);
+
+  sema_up (&cur->info->sema_wait_child);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;

@@ -122,9 +122,6 @@ fd_valid (int fd) {
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf("\nABC");
-  if (!f->esp)	sys_exit (SYS_ERROR); 
- 
   uint32_t *stack_ptr=(uint32_t *)f->esp;
 
   if (pagedir_get_page (thread_current ()->pagedir, stack_ptr) == NULL) {
@@ -227,7 +224,7 @@ sys_halt (void){
 static void
 sys_exit (int status){
 	struct thread *cur = thread_current ();
-
+	cur->exit_status = status;
 	/*Close all open files. Dereference file entry in fd_array.*/
 	int index;
 	for (index = 2; index < 128; index ++) {
@@ -237,25 +234,6 @@ sys_exit (int status){
 			cur->fd_array[index]=NULL;
 		}
 	}
-	printf("%s: exit(%d)\n", cur->name,status);
-
-	cur->info->alive = false;
-       	cur->info->exit_status = status;
-	/*Iterate through children_list and update each child's parent_alive variable to false.*/
-	struct list_elem *e;
-   	for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list)
-									;e=list_next(e)) {
-   
-		struct process_info *c = list_entry (e,struct process_info,elem);
-		c->parent_alive = false;
-	
-	 }
-
-	/*If parent is not alive, free current thread's info.*/ 	
-	if (!cur->info->parent_alive)
-		free (cur->info);
-
-	sema_up (&cur->info->sema_wait_child);
 	thread_exit ();
 }
 
