@@ -106,6 +106,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd_array[128];		/* File descriptor array */
+    int exit_status;
     //int parent_pid; 			/* pid/tid of parent process */
     struct process_info *info;		/* Additional info about thread. */	
     struct list children_list;
