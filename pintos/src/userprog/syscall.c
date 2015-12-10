@@ -75,7 +75,7 @@ buffer_chk (const char *buffer, unsigned size) {
 	  unsigned i=1;
 	  while (i <= size) {
 		
-		if ( (size-i) < PGSIZE )  next_address = next_address + size;
+		if ( (size-i) < PGSIZE )  next_address = next_address + (size-i);
 	
 		else 	next_address = next_address + PGSIZE;
 		
@@ -89,25 +89,6 @@ buffer_chk (const char *buffer, unsigned size) {
 
 	return true;
 }
-
-/*Check whether the filename is valid/invalid. We need to verify if each
-character of the filename is mapped in memory. Additionaly, file names are
-limited to 14 characters.*/
-/*static bool
-file_valid (const char *filename) {
-
-	int i;
-	for (i=0; i <= 14; i++) {
-	
-		filename++;
-	
-		if (filename == NULL) return false;
-		else if (*filename == '\0') return true;
-	}
-	
-	//If filesize is greater than max_file_size, invalid file.
-	return false;
-}*/
 
 /**Function to check if FD is valid for the process. Return false
 if invalid. **/
@@ -239,8 +220,14 @@ sys_exit (int status){
 
 static int
 sys_exec (const void *buffer){
-	printf("\nExec");
-	return 1;
+
+   if(buffer == NULL || !address_chk (buffer) || !buffer_chk (buffer, 0)) {
+                  sys_exit (SYS_ERROR);
+   }
+
+
+   int pid = process_execute((const char *)buffer);
+   return pid;
 }
 
 static int

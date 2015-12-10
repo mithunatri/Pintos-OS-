@@ -203,6 +203,7 @@ thread_create (const char *name, int priority,
   info->parent_alive = true;
   info->parent_waited = false;
   sema_init (&info->sema_wait_child, 0);
+  sema_init (&info->semaload, 0);
   /*Push the new/child threads process_info struct into parent children_list.*/
   list_push_back (&thread_current()->children_list,&info->elem);
   t->info = info;

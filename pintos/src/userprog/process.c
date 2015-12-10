@@ -40,15 +40,44 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
+
   strlcpy (fn_copy, file_name, PGSIZE);
   
-  cmd_name=strtok_r(file_name, " ",&ptr);
+  cmd_name=strtok_r(file_name," ",&ptr);
   
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
+
+  struct thread *cur = thread_current();
+  struct list_elem *e;
+  struct process_info *c;   
+
+  /*Iterate through the children_list to find child with matching PID.*/
+  int flag = 0;
+  for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list) ;e = list_next(e)) 
+  {
+      c = list_entry (e, struct process_info, elem);
+      if(c->pid == tid)
+     {
+      flag = 1;
+      sema_down(&c->semaload);
+      
+     }
+      
+  }
+if (flag == 0) return -1;    
+else{
+  //* Deny Write *//
+  struct file *file1 = filesys_open(cmd_name);
+    if (!file1) return -1;
+    file_deny_write(file1);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  if(c->load_status == 0)
   return tid;
+  else
+  return -1;
+}
 }
 
 /* A thread function that loads a user process and starts it
@@ -86,9 +115,15 @@ start_process (void *file_name_)
   file_name=argv_to_populate[0]; 
   success = load (file_name, &if_.eip, &if_.esp);
 
-  if (!success) 
+  if (!success)
+  {
+    thread_current()->info->load_status = -1;
+    sema_up(&thread_current()->info->semaload); 
     thread_exit ();
-  
+  }
+  thread_current()->info->	load_status = 0;
+  sema_up(&thread_current()->info->semaload);
+
   int **addr = (int **) malloc (argc * sizeof(int *));   
   int arg_len; 
   for(i=argc;i>0;i--)

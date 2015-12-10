@@ -124,7 +124,9 @@ struct thread
     bool alive;           		/* If TRUE, the child is alive, else the child has exited */
     bool parent_alive;			/* If TRUE, parent is alive, else parent has already exited.*/		
     bool parent_waited; 		/* Changed to TRUE if the parent process has already waited on this child */
-    struct semaphore sema_wait_child;  /* Synchronization primitive to ensure parent waits until child exits */
+    struct semaphore sema_wait_child;   /* Synchronization primitive to ensure parent waits until child exits */
+    struct semaphore semaload;		/* Synchronization primitive to ensure parent waits until chil loads **/
+    bool load_status;			//* Set to true if process loads successfully, false otherwise *//
   };
 //#endif
 /* If false (default), use round-robin scheduler.
