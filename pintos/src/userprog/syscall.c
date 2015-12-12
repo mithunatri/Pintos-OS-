@@ -18,25 +18,23 @@
 #define MAX_BUFFER_SIZE 256
 #define SYS_ERROR -1
 
-static void 	syscall_handler (struct intr_frame *);
+static void syscall_handler (struct intr_frame *);
 
-static void 	sys_halt (void);
-static void 	sys_exit (int);
-static int 	sys_exec (const void *);
-static int 	sys_wait (int);
-static bool 	sys_create (const char *, unsigned);
-static bool 	sys_remove (const char *);
-static int  	sys_open (const char *);
-static int  	sys_filesize (int);
-static int  	sys_read (int, const char *, unsigned);
-static int 	sys_write (int, const char *, unsigned);
-static void 	sys_seek (int, int);
-static int  	sys_tell (int);
-static void 	sys_close (int);
+static void sys_halt (void);
+static void sys_exit (int);
+static int sys_exec (const void *);
+static int sys_wait (int);
+static bool sys_create (const char *, unsigned);
+static bool sys_remove (const char *);
+static int sys_open (const char *);
+static int sys_filesize (int);
+static int sys_read (int, const char *, unsigned);
+static int sys_write (int, const char *, unsigned);
+static void sys_seek (int, int);
+static int  sys_tell (int);
+static void sys_close (int);
 
-
-static struct 	lock g_file_lock;
-
+static struct lock g_file_lock;
 
 void
 syscall_init (void) 
@@ -66,8 +64,6 @@ mapped. If not, invokes sys_exit with -1 status code. Else, returns the
 start address of the buffer. **/
 static bool 
 buffer_chk (const char *buffer, unsigned size) {
- 	
-//         if (buffer == NULL) return false;
  	
 	 const void *next_address=buffer; 
 	/*If size of buffer is less than one full page, then check
@@ -190,7 +186,6 @@ syscall_handler (struct intr_frame *f UNUSED)
 		break;
   }
 
-//  return f->eax;
 }
 
 /**Halt System Call **/
@@ -218,6 +213,7 @@ sys_exit (int status){
 	thread_exit ();
 }
 
+/**Exec System Call **/
 static int
 sys_exec (const void *buffer){
 
@@ -230,6 +226,7 @@ sys_exec (const void *buffer){
    return pid;
 }
 
+/**Wait System Call **/
 static int
 sys_wait (int pid){
 	
@@ -237,12 +234,10 @@ sys_wait (int pid){
 	return exit_status;
 }
 
+/**Create System Call **/
 static bool 
 sys_create (const char *filename, unsigned size){
 	
-  	/*if (pagedir_get_page (thread_current ()->pagedir, filename) == NULL) {
-		sys_exit (SYS_ERROR);
- 	 }*/
 	if(filename == NULL || !address_chk (filename) || !buffer_chk (filename, strlen (filename))) { 
 		sys_exit (SYS_ERROR);
 	}
@@ -256,6 +251,7 @@ sys_create (const char *filename, unsigned size){
 	return success;
 }
 
+/**Remove System Call **/
 static bool 
 sys_remove (const char *filename) {
 
@@ -272,6 +268,7 @@ sys_remove (const char *filename) {
 	return success;
 }
 
+/**Open System Call **/
 static int
 sys_open (const char *filename) {
 
@@ -305,6 +302,7 @@ sys_open (const char *filename) {
 	return fd;	
 }
 
+/**Filesize System Call **/
 static int 
 sys_filesize (int fd) {
 	
@@ -321,6 +319,7 @@ sys_filesize (int fd) {
 	return filesize;
 }
 
+/**Read System Call **/
 static int
 sys_read (int fd, const char *buffer, unsigned size){
 
@@ -351,6 +350,7 @@ sys_read (int fd, const char *buffer, unsigned size){
 	return read_size;
 }
 
+/**Write System Call **/
 static int 
 sys_write (int fd, const char *buffer, unsigned size) {
 
@@ -383,10 +383,10 @@ sys_write (int fd, const char *buffer, unsigned size) {
 		lock_release (&g_file_lock);
 	}		
 
-//	printf("\nWrite");
 	return write_size;
 }
 
+/**Seek System Call **/
 static void 
 sys_seek (int fd, int position) {
 
@@ -402,6 +402,7 @@ sys_seek (int fd, int position) {
 
 }
 
+/**Tell System Call **/
 static int 
 sys_tell (int fd) {
 
@@ -418,6 +419,7 @@ sys_tell (int fd) {
 	return offset;
 }
 
+/**Close System Call **/
 static void
 sys_close (int fd) {
 	

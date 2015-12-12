@@ -107,7 +107,6 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd_array[128];		/* File descriptor array */
     int exit_status;
-    //int parent_pid; 			/* pid/tid of parent process */
     struct addnl_thread_info *info;	/* Additional info about thread. */
     struct file *file;	
     struct list children_list;

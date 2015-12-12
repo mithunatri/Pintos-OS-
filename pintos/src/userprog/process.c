@@ -71,16 +71,6 @@ process_execute (const char *file_name)
   }
   if (flag == 0) return -1;    
   else {
-  	//* Deny Write *//
-  	/*struct file *file1 = filesys_open(cmd_name);
-    	if (!file1) return -1;
-    	
-	file_deny_write(file1);*/
-  	
-	/*if (tid == TID_ERROR) {
-    		palloc_free_page (fn_copy); 
-		palloc_free_page (another_copy);
-	}*/
   	if(c->load_status == 0)
   		return tid;
   	else
@@ -105,7 +95,6 @@ start_process (void *file_name_)
 
   char *token;
   char *saveptr; 
-  //char *exec_file;
  
   char **argv_to_populate= (char**) malloc(strlen(file_name)*sizeof(char *));
   int argc=0;
@@ -140,13 +129,10 @@ start_process (void *file_name_)
   int arg_len; 
   for(i=argc;i>0;i--)
   {
-    //  hex_dump(if_.esp-54,if_.esp,54,true);
     arg_len=strlen(argv_to_populate[i-1])+1;
     if_.esp = if_.esp-(arg_len);
     memcpy(if_.esp,argv_to_populate[i-1],arg_len);
     addr[i-1]=if_.esp;
-  //}
-  //hex_dump(if_.esp-54,if_.esp,54,true);
   }
   int offset_align = args_len % 4;
   if_.esp = if_.esp - (offset_align != 0 ? 4 - offset_align : 0) ; 
@@ -157,24 +143,18 @@ start_process (void *file_name_)
      memset(if_.esp-i-1,0,sizeof(int));
    }
   }
-  //hex_dump(if_.esp-60,if_.esp,60,true);
   if_.esp-=4;
   for(i=4;i>0;i--)
   {
     memset(if_.esp-i-1,0,sizeof(int));
   }
 
-  //hex_dump(if_.esp-60,if_.esp,60,true);
   for(i=argc;i>0;i--)
   {
     if_.esp-= sizeof(int *);
     *(void **) (if_.esp) = addr[i-1];
-  //}
-  //hex_dump(if_.esp-152,if_.esp,152,true);
   }
-  //  char **argv_ptr;
 
-//  argv_ptr=&if_.esp;
   if_.esp-= sizeof(char *);
   *(char **)if_.esp = if_.esp+sizeof(char **);
   if_.esp-=sizeof(int *);
@@ -236,21 +216,10 @@ process_wait (tid_t child_tid)
 	}
 
 	ret_exit = c->exit_status;
-       /*  if(c->alive == false)
-         {
-           // sema_down (&c->sema_wait_child);
-	    ret_exit = c->exit_status;
-         } 
-         else
-         {
-            c->parent_waited = true;
-            sema_down (&c->sema_wait_child);
-            ret_exit = c->exit_status;
-         }*/
 	
-	 list_remove (&c->elem);
-	 free (c);
-	 return ret_exit;
+ 	list_remove (&c->elem);
+	free (c);
+	return ret_exit;
       }
     }
     return -1;
@@ -277,7 +246,6 @@ process_exit (void)
 	
   }
 
-  //sema_up (&cur->info->sema_wait_child);
   lock_acquire (&cur->info->cond_lock);
   cond_signal (&cur->info->child_done, &cur->info->cond_lock);
   lock_release (&cur->info->cond_lock);

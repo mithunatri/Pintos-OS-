@@ -198,13 +198,11 @@ thread_create (const char *name, int priority,
 
   struct addnl_thread_info *info = (struct addnl_thread_info *)malloc (sizeof (struct addnl_thread_info));
   info->pid = tid;
-  //t->parent_pid=thread_tid();
   info->alive = true;
   info->parent_alive = true;
   info->parent_waited = false;
   lock_init (&info->cond_lock);
   cond_init (&info->child_done);
-//  sema_init (&info->sema_wait_child, 0);
   sema_init (&info->semaload, 0);
   /*Push the new/child threads addnl_thread_info struct into parent children_list.*/
   list_push_back (&thread_current()->children_list,&info->elem);
@@ -757,18 +755,4 @@ incr_recent_cpu()
   t->f_recent_cpu = real_mixsum(t->f_recent_cpu,1);
  else
   return;
-}
-
-struct thread *
-get_thread_by_tid (int tid)
-{
-   struct list_elem *e;
- 
-   for (e = list_begin (&all_list); e != list_end(&all_list); e = list_next (e))
-     {
-       struct thread *t = list_entry (e, struct thread, allelem);
-       if( t -> tid == tid) return t;
-     }
- 
-     return NULL;
 }
