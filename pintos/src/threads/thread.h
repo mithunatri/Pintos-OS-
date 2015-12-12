@@ -108,7 +108,8 @@ struct thread
     struct file *fd_array[128];		/* File descriptor array */
     int exit_status;
     //int parent_pid; 			/* pid/tid of parent process */
-    struct process_info *info;		/* Additional info about thread. */	
+    struct process_info *info;		/* Additional info about thread. */
+    struct file *file;	
     struct list children_list;
 #endif
 
