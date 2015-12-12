@@ -367,7 +367,7 @@ sys_write (int fd, const char *buffer, unsigned size) {
 		while (size > MAX_BUFFER_SIZE) {
 			
 			putbuf (buffer, MAX_BUFFER_SIZE);
-			buffer += MAX_BUFFER_SIZE;	//may cause some pointer arithmetic problem
+			buffer += MAX_BUFFER_SIZE;	
 			size -=MAX_BUFFER_SIZE;
 		}
 		putbuf (buffer, size);
