@@ -196,15 +196,17 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
-  struct process_info *info = (struct process_info *)malloc (sizeof (struct process_info));
+  struct addnl_thread_info *info = (struct addnl_thread_info *)malloc (sizeof (struct addnl_thread_info));
   info->pid = tid;
   //t->parent_pid=thread_tid();
   info->alive = true;
   info->parent_alive = true;
   info->parent_waited = false;
-  sema_init (&info->sema_wait_child, 0);
+  lock_init (&info->cond_lock);
+  cond_init (&info->child_done);
+//  sema_init (&info->sema_wait_child, 0);
   sema_init (&info->semaload, 0);
-  /*Push the new/child threads process_info struct into parent children_list.*/
+  /*Push the new/child threads addnl_thread_info struct into parent children_list.*/
   list_push_back (&thread_current()->children_list,&info->elem);
   t->info = info;
   /* Prepare thread for first run by initializing its stack.

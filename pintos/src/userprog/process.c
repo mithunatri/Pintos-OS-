@@ -48,16 +48,21 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
 
+  if (tid == TID_ERROR) {
+    		palloc_free_page (fn_copy); 
+		palloc_free_page (another_copy);
+		return tid;
+  }
   struct thread *cur = thread_current();
   struct list_elem *e;
-  struct process_info *c;   
+  struct addnl_thread_info *c;   
 
   /*Iterate through the children_list to find child with matching PID.*/
   int flag = 0;
   for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list) ;
 								e = list_next(e)) {
   
-      c = list_entry (e, struct process_info, elem);
+      c = list_entry (e, struct addnl_thread_info, elem);
       if(c->pid == tid)  {
       	flag = 1;
       	sema_down(&c->semaload);
@@ -72,10 +77,10 @@ process_execute (const char *file_name)
     	
 	file_deny_write(file1);*/
   	
-	if (tid == TID_ERROR) {
+	/*if (tid == TID_ERROR) {
     		palloc_free_page (fn_copy); 
 		palloc_free_page (another_copy);
-	}
+	}*/
   	if(c->load_status == 0)
   		return tid;
   	else
@@ -206,12 +211,12 @@ process_wait (tid_t child_tid)
    //while(child_tid);
    struct thread *cur = thread_current();
    struct list_elem *e;
-   struct process_info *c;
+   struct addnl_thread_info *c;
    
    /*Iterate through the children_list to find child with matching PID.*/
    for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list)
 								;e = list_next(e)) {
-      c = list_entry (e, struct process_info, elem);
+      c = list_entry (e, struct addnl_thread_info, elem);
       if(c->pid == child_tid)
         break;
    }
@@ -224,10 +229,16 @@ process_wait (tid_t child_tid)
          return -1;
       else
       {
-	 int ret_exit;
-         if(c->alive == false)
+	int ret_exit;
+	lock_acquire (&c->cond_lock);
+	while (c->alive == true) {
+		cond_wait (&c->child_done, &c->cond_lock);
+	}
+
+	ret_exit = c->exit_status;
+       /*  if(c->alive == false)
          {
-            sema_down (&c->sema_wait_child);
+           // sema_down (&c->sema_wait_child);
 	    ret_exit = c->exit_status;
          } 
          else
@@ -235,7 +246,7 @@ process_wait (tid_t child_tid)
             c->parent_waited = true;
             sema_down (&c->sema_wait_child);
             ret_exit = c->exit_status;
-         }
+         }*/
 	
 	 list_remove (&c->elem);
 	 free (c);
@@ -261,12 +272,15 @@ process_exit (void)
   struct list_elem *e;
   for (e = list_begin (&cur->children_list); e != list_end (&cur->children_list)
 									;e=list_next(e)) {
-  		struct process_info *c = list_entry (e,struct process_info,elem);
+  		struct addnl_thread_info *c = list_entry (e,struct addnl_thread_info,elem);
 		c->parent_alive = false;
 	
   }
 
-  sema_up (&cur->info->sema_wait_child);
+  //sema_up (&cur->info->sema_wait_child);
+  lock_acquire (&cur->info->cond_lock);
+  cond_signal (&cur->info->child_done, &cur->info->cond_lock);
+  lock_release (&cur->info->cond_lock);
   /*If parent is not alive, free current thread's info.*/ 	
   if (!cur->info->parent_alive)
 	free (cur->info);

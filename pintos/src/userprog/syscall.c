@@ -190,7 +190,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		break;
   }
 
-  return f->eax;
+//  return f->eax;
 }
 
 /**Halt System Call **/

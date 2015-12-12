@@ -108,7 +108,7 @@ struct thread
     struct file *fd_array[128];		/* File descriptor array */
     int exit_status;
     //int parent_pid; 			/* pid/tid of parent process */
-    struct process_info *info;		/* Additional info about thread. */
+    struct addnl_thread_info *info;	/* Additional info about thread. */
     struct file *file;	
     struct list children_list;
 #endif
@@ -116,20 +116,21 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
-//#ifdef USERPROG
- struct process_info
+ 
+  struct addnl_thread_info
   {
-    int  pid;
-    int exit_status;
     struct list_elem elem;
+    int  pid;				/* PID of the current process. Used in wait (). */
+    int exit_status;			/* Exit status of the current process. */
     bool alive;           		/* If TRUE, the child is alive, else the child has exited */
     bool parent_alive;			/* If TRUE, parent is alive, else parent has already exited.*/		
     bool parent_waited; 		/* Changed to TRUE if the parent process has already waited on this child */
-    struct semaphore sema_wait_child;   /* Synchronization primitive to ensure parent waits until child exits */
+    struct lock cond_lock;		/* Condition lock. */
+    struct condition child_done; 	/* Synchronization primitive to ensure parent waits until child exits */
     struct semaphore semaload;		/* Synchronization primitive to ensure parent waits until chil loads **/
     bool load_status;			//* Set to true if process loads successfully, false otherwise *//
   };
-//#endif
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
